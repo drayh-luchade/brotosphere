@@ -19,9 +19,13 @@ import json
 import os
 import sys
 import time
+import urllib.error
 import urllib.request
 
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+OVERPASS_URLS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+]
 CONUS_BBOX = "24.5,-125.0,49.5,-66.9"  # south,west,north,east
 
 # Each category maps to one or more Overpass tag filters. Keep filters
@@ -84,14 +88,31 @@ out center;
 
 def fetch_category(name, filters, bbox=CONUS_BBOX):
     query = build_query(filters, bbox)
-    data = urllib.parse = None  # placeholder to keep linters quiet
-    req = urllib.request.Request(
-        OVERPASS_URL,
-        data=("data=" + query).encode("utf-8"),
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-    )
-    with urllib.request.urlopen(req, timeout=200) as resp:
-        payload = json.loads(resp.read().decode("utf-8"))
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        # Overpass (and most public APIs) reject requests with the
+        # default urllib User-Agent as unidentified bot traffic (406).
+        # Swap the contact email for your own if you're running this
+        # regularly, per Overpass's usage policy.
+        "User-Agent": "brotosphere-etl/1.0 (contact: replace-with-your-email@example.com)",
+    }
+
+    last_err = None
+    for url in OVERPASS_URLS:
+        req = urllib.request.Request(url, data=("data=" + query).encode("utf-8"), headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=200) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            break
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")[:500]
+            print(f"  {url} -> HTTP {e.code}: {body}", file=sys.stderr)
+            last_err = e
+        except Exception as e:
+            print(f"  {url} -> {e}", file=sys.stderr)
+            last_err = e
+    else:
+        raise RuntimeError(f"All Overpass mirrors failed for category '{name}'") from last_err
 
     features = []
     for el in payload.get("elements", []):
