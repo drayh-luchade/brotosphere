@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>United States Brotosphere Survey — GIS Amenity Analysis</title>
+<meta name="description" content="A transparent GIS tool for finding places that satisfy your lifestyle constraints. No rankings. No AI. Just data." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-left">
+    <div class="seal" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="34" height="34">
+        <circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="1"/>
+        <path d="M32 10 L36 26 L52 26 L39 35 L44 51 L32 41 L20 51 L25 35 L12 26 L28 26 Z" fill="currentColor" opacity="0.85"/>
+      </svg>
+    </div>
+    <div class="masthead-titles">
+      <h1>United States Brotosphere Survey</h1>
+      <p class="subtitle">Geographic Information System &middot; Lifestyle Amenity Suitability Analysis</p>
+    </div>
+  </div>
+  <div class="masthead-right">
+    <div class="stamp">FORM GS&#8209;1 &middot; REV. 2026</div>
+    <button id="about-toggle" class="link-btn" type="button">About this survey</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-scroll">
+
+      <section class="panel-block">
+        <h2 class="block-title">Site Suitability Criteria</h2>
+        <p class="block-help">Set a minimum for any amenity you care about. Cells meeting <em>every</em> enabled criterion below are shown in green. Everything else is gray. There is no score.</p>
+      </section>
+
+      <section class="panel-block" id="filters"></section>
+
+      <section class="panel-block">
+        <h2 class="block-title">Exclusion Zones</h2>
+        <p class="block-help">Mask out areas regardless of how well they score.</p>
+        <div class="exclusion-row">
+          <label class="check-row">
+            <input type="checkbox" id="excl-address-enabled" />
+            <span>Avoid area around an address</span>
+          </label>
+          <div class="exclusion-sub" id="excl-address-sub">
+            <input type="text" id="excl-address-input" placeholder="e.g. 123 Main St, Columbus, OH — or just &quot;My Ex&quot;'s old apartment" />
+            <button type="button" id="excl-address-go" class="btn-secondary">Locate</button>
+            <div class="field-row">
+              <label for="excl-address-radius">Radius</label>
+              <input type="range" id="excl-address-radius" min="5" max="150" value="30" />
+              <output id="excl-address-radius-out">30 mi</output>
+            </div>
+            <p class="geocode-status" id="geocode-status"></p>
+          </div>
+        </div>
+        <div class="exclusion-row disabled-note">
+          <label class="check-row">
+            <input type="checkbox" disabled />
+            <span>Avoid by state / county</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" disabled />
+            <span>Avoid user-drawn polygon</span>
+          </label>
+          <p class="coming-soon">Planned for v1.1 — requires boundary layers not yet in the pipeline.</p>
+        </div>
+      </section>
+
+      <section class="panel-block">
+        <button id="reset-btn" class="btn-secondary full-width" type="button">Reset all criteria</button>
+      </section>
+
+    </div>
+  </aside>
+
+  <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Toggle criteria panel">&#9776;</button>
+
+  <main class="map-wrap">
+    <div id="map"></div>
+
+    <div class="corner-plate" id="corner-plate">
+      <div class="plate-row plate-header">
+        <span class="plate-quad">BROTOSPHERE QUADRANGLE</span>
+        <span class="plate-scale">H3 RES. 3 &middot; ~65 MI CELLS</span>
+      </div>
+      <div class="plate-row plate-legend">
+        <span class="swatch swatch-pass"></span> Satisfies all enabled criteria
+        <span class="swatch swatch-fail"></span> Fails one or more
+        <span class="swatch swatch-excl"></span> Excluded
+      </div>
+      <div class="plate-row plate-foot">
+        <span>DATUM: WGS84</span>
+        <span>DATA VINTAGE: SAMPLE / SYNTHETIC</span>
+        <span id="cell-count-readout">729 CELLS</span>
+      </div>
+    </div>
+
+    <div class="hex-popup" id="hex-popup" hidden></div>
+  </main>
+</div>
+
+<div class="about-overlay" id="about-overlay" hidden>
+  <div class="about-card">
+    <button class="about-close" id="about-close" type="button" aria-label="Close">&times;</button>
+    <h2>About this survey</h2>
+    <p>The Brotosphere is a homing signal. Tell it what a place needs to have — bars, breweries, boat ramps, a golf course, a reasonable drive to an NFL stadium — and it shows you where in the country satisfies <em>all</em> of it. Not a ranking. Not a score out of 100. Just a map that says yes or no.</p>
+    <p>This build ships with synthetic sample data so the map works the moment you open it. The real pipeline (Overpass API pulls, H3 aggregation, monthly GitHub Action) lives in <code>/etl</code> and is documented in the README.</p>
+    <button class="btn-secondary" id="about-close-2" type="button">Close</button>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
