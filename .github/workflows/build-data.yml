@@ -13,6 +13,7 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 
@@ -23,10 +24,33 @@ jobs:
       - name: Install ETL dependencies
         run: pip install h3
 
-      - name: Run pipeline
-        run: python3 etl/pipeline.py --res 5
+      # continue-on-error: some tiles/categories may fail against the
+      # public Overpass API (rate limiting, timeouts). fetch_osm_pois.py
+      # merges against previously fetched data, so a partial run still
+      # produces a usable (if incomplete) result rather than nothing.
+      - name: Fetch OSM POIs
+        id: fetch
+        continue-on-error: true
+        run: python3 etl/fetch_osm_pois.py --rows 4 --cols 6
 
-      - name: Commit updated data
+      # Commit whatever raw data exists right now, regardless of whether
+      # the fetch step above fully succeeded. This is what makes a
+      # partial/timed-out run not a total loss.
+      - name: Commit raw data progress
+        run: |
+          git config user.name "brotosphere-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/raw
+          git diff --quiet --cached || git commit -m "Raw data fetch progress"
+          git push
+
+      - name: Build hex grid
+        run: python3 etl/build_h3_grid.py --res 5
+
+      - name: Compute metrics
+        run: python3 etl/compute_metrics.py
+
+      - name: Commit hex data
         run: |
           git config user.name "brotosphere-bot"
           git config user.email "actions@users.noreply.github.com"
@@ -34,8 +58,15 @@ jobs:
           git diff --quiet --cached || git commit -m "Monthly data refresh"
           git push
 
+      - name: Fail the run if the fetch step had problems
+        if: steps.fetch.outcome == 'failure'
+        run: |
+          echo "::warning::fetch_osm_pois.py reported failures this run -- data/hexes.geojson was still rebuilt from whatever raw data is currently on disk (a mix of old and newly fetched, depending on which tiles succeeded). Check the 'Fetch OSM POIs' step log above for details, and re-run the workflow to try filling in the gaps."
+          exit 1
+
   deploy:
     needs: refresh
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
