@@ -80,7 +80,7 @@ def main():
         h3id = cell["h3"]
         clat, clng = cell["center"][1], cell["center"][0]
 
-        props = {"h3": h3id, **counts[h3id]}
+        props = {"h3": h3id, "h3_res": resolution, **counts[h3id]}
 
         for league, venues in VENUES.items():
             if venues:
