@@ -115,6 +115,23 @@ function buildFilterUI() {
 }
 
 // ---- map setup -----------------------------------------------------
+// Average H3 cell area by resolution, converted to sq mi -- used only to
+// label the corner plate. (H3's own docs give these in km^2; res 5 is the
+// pipeline's current default.)
+const H3_AVG_AREA_SQ_MI = { 2: 33500, 3: 4784, 4: 683, 5: 97.6, 6: 13.9, 7: 1.99, 8: 0.285 };
+
+function setResolutionLabel(res) {
+  const el = document.getElementById("plate-scale-readout");
+  if (res === undefined || res === null) {
+    el.textContent = "H3 RES. \u2014";
+    return;
+  }
+  const area = H3_AVG_AREA_SQ_MI[res];
+  el.textContent = area
+    ? `H3 RES. ${res} \u00b7 ~${area.toLocaleString()} SQ MI/CELL`
+    : `H3 RES. ${res}`;
+}
+
 const map = new maplibregl.Map({
   container: "map",
   style: "https://tiles.openfreemap.org/styles/positron",
@@ -163,6 +180,7 @@ map.on("load", async () => {
   });
 
   document.getElementById("cell-count-readout").textContent = `${geojson.features.length} CELLS`;
+  setResolutionLabel(geojson.features[0]?.properties?.h3_res);
 
   map.addSource(SOURCE_ID, {
     type: "geojson",
