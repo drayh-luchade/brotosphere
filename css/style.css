@@ -365,6 +365,14 @@ html, body {
   z-index: 100;
 }
 
+/* The rule above sets display:flex unconditionally, which overrides the
+   browser's built-in [hidden] handling (author CSS always wins over the
+   default user-agent stylesheet, regardless of specificity). Without this,
+   the overlay shows on load and "closing" it does nothing visually. */
+.about-overlay[hidden] {
+  display: none;
+}
+
 .about-card {
   background: var(--panel);
   border: 2px solid var(--ink);
