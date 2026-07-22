@@ -18,6 +18,7 @@ Usage:
     python3 etl/compute_metrics.py --grid data/grid.json --raw data/raw --out data/hexes.geojson
 """
 import argparse
+import csv
 import json
 import math
 import os
@@ -42,13 +43,20 @@ def haversine_miles(lat1, lon1, lat2, lon2):
 
 
 def load_raw(raw_dir, name):
-    path = os.path.join(raw_dir, f"{name}.geojson")
+    """Raw POI files are compact CSV: a header row, then one 'lon,lat' row
+    per point. Returns a list of (lon, lat) float tuples."""
+    path = os.path.join(raw_dir, f"{name}.csv")
     if not os.path.exists(path):
         print(f"  (missing {path}, treating {name} as all-zero)")
         return []
-    with open(path) as f:
-        fc = json.load(f)
-    return fc["features"]
+    points = []
+    with open(path, newline="") as f:
+        reader = csv.reader(f)
+        next(reader, None)  # header
+        for row in reader:
+            if len(row) == 2:
+                points.append((float(row[0]), float(row[1])))
+    return points
 
 
 def main():
@@ -65,15 +73,13 @@ def main():
     counts = {cell["h3"]: {cat: 0 for cat in POINT_CATEGORIES} for cell in grid}
 
     for cat in POINT_CATEGORIES:
-        features = load_raw(args.raw, cat)
-        for ft in features:
-            lon, lat = ft["geometry"]["coordinates"][:2]
+        points = load_raw(args.raw, cat)
+        for lon, lat in points:
             cell = h3.latlng_to_cell(lat, lon, resolution)
             if cell in counts:
                 counts[cell][cat] += 1
 
-    casinos = load_raw(args.raw, "casinos")
-    casino_points = [ft["geometry"]["coordinates"] for ft in casinos]  # [lon, lat]
+    casino_points = load_raw(args.raw, "casinos")  # list of (lon, lat)
 
     out_features = []
     for cell in grid:
