@@ -137,25 +137,25 @@ html, body {
   margin: 0 0 4px;
 }
 
-/* filter rows built by JS */
+/* filter rows built by JS -- each is a single icon + label + number input.
+   No checkbox: a blank input means "not applied," a filled one applies it.
+   Active (non-blank) rows get a highlighted left edge so it's obvious at
+   a glance which criteria are actually doing something. */
 
 .filter-item {
-  padding: 10px 0;
+  padding: 8px 0;
   border-top: 1px solid var(--line);
 }
 
 .filter-item:first-child { border-top: none; }
 
-.filter-head {
+.filter-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  cursor: pointer;
 }
 
-.filter-head input[type="checkbox"] { accent-color: var(--green); }
-
-.filter-icon { font-size: 0.95rem; width: 1.2em; text-align: center; }
+.filter-icon { font-size: 0.95rem; width: 1.2em; text-align: center; flex-shrink: 0; }
 
 .filter-name {
   font-weight: 500;
@@ -163,14 +163,63 @@ html, body {
   flex: 1;
 }
 
-.filter-body {
-  margin-top: 8px;
-  padding-left: 26px;
-  display: none;
+.filter-verb {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
 }
 
-.filter-item.enabled .filter-body { display: block; }
+.filter-num {
+  width: 64px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  padding: 4px 6px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--ink);
+  text-align: right;
+}
 
+.filter-num:focus { outline: 2px solid var(--green); outline-offset: 1px; }
+
+.filter-item.active { border-left: 3px solid var(--green); padding-left: 6px; margin-left: -9px; }
+
+.filter-unit { font-size: 0.72rem; color: var(--ink-soft); min-width: 1.4em; }
+
+/* Pro Sports group: a header row (no input of its own) plus four nested
+   per-league number rows underneath. */
+
+.sports-group { padding: 8px 0; border-top: 1px solid var(--line); }
+
+.sports-group-title {
+  font-weight: 500;
+  font-size: 0.86rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.sports-sub-list {
+  padding-left: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sports-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.sports-sub-row .filter-name { font-weight: 400; flex: 1; }
+.sports-sub-row.active .filter-name { font-weight: 500; color: var(--green); }
+
+/* Still used by the exclusion-zone radius control, which remains a
+   slider (unlike the main criteria, a "how big an area" radius reads
+   naturally as a drag, not a typed number). */
 .field-row {
   display: flex;
   align-items: center;
@@ -278,6 +327,53 @@ html, body {
 
 .map-wrap { position: relative; flex: 1; }
 #map { position: absolute; inset: 0; }
+
+/* zoom-to-best-match button */
+
+.zoom-best-btn {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 15;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 8px 14px;
+  background: var(--panel);
+  border: 1.5px solid var(--ink);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 2px 2px 0 rgba(36,31,20,0.15);
+}
+
+.zoom-best-btn:hover:not(:disabled) { background: var(--ink); color: var(--panel); }
+.zoom-best-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+#blob-status {
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
+/* the easter egg -- typing the same joke number into every single field */
+
+.bruh-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 30;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: min(22vw, 260px);
+  color: var(--ink);
+  opacity: 0.85;
+  text-shadow: 4px 4px 0 var(--water-line), -2px -2px 0 var(--paper);
+  transform: rotate(-6deg);
+  letter-spacing: 0.02em;
+  user-select: none;
+}
 
 /* corner information plate, styled after a USGS quad-sheet margin block */
 
