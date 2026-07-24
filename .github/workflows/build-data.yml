@@ -1,9 +1,24 @@
-name: Refresh data and deploy
+name: Build hex grid and deploy
+
+# Raw data collection now happens manually via Colab (see
+# etl/colab_state_fetch.py) rather than here -- this workflow just
+# rebuilds data/hexes.geojson from whatever's already committed under
+# data/raw/ and data/venues.csv, then deploys. No Overpass calls, no
+# multi-hour runs; this should finish in well under a minute.
+#
+# If you ever want the old behavior back (this Action fetching directly
+# from Overpass on a schedule), the previous version of this file ran
+# etl/fetch_osm_pois.py as an extra step before "Build hex grid" below.
 
 on:
-  schedule:
-    - cron: "0 6 1 * *"   # 06:00 UTC on the 1st of each month
-  workflow_dispatch: {}    # allow manual runs from the Actions tab
+  workflow_dispatch: {}    # manual runs from the Actions tab
+  push:
+    paths:
+      - "data/raw/**"
+      - "data/venues.csv"
+      - "etl/build_h3_grid.py"
+      - "etl/compute_metrics.py"
+      - "etl/venues.py"
 
 permissions:
   contents: write
@@ -11,9 +26,9 @@ permissions:
   id-token: write
 
 jobs:
-  refresh:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -21,28 +36,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install ETL dependencies
+      - name: Install dependencies
         run: pip install h3
-
-      # continue-on-error: some tiles/categories may fail against the
-      # public Overpass API (rate limiting, timeouts). fetch_osm_pois.py
-      # merges against previously fetched data, so a partial run still
-      # produces a usable (if incomplete) result rather than nothing.
-      - name: Fetch OSM POIs
-        id: fetch
-        continue-on-error: true
-        run: python3 etl/fetch_osm_pois.py --rows 4 --cols 6
-
-      # Commit whatever raw data exists right now, regardless of whether
-      # the fetch step above fully succeeded. This is what makes a
-      # partial/timed-out run not a total loss.
-      - name: Commit raw data progress
-        run: |
-          git config user.name "brotosphere-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add data/raw
-          git diff --quiet --cached || git commit -m "Raw data fetch progress"
-          git push
 
       - name: Build hex grid
         run: python3 etl/build_h3_grid.py --res 5
@@ -55,17 +50,11 @@ jobs:
           git config user.name "brotosphere-bot"
           git config user.email "actions@users.noreply.github.com"
           git add data/hexes.geojson
-          git diff --quiet --cached || git commit -m "Monthly data refresh"
+          git diff --quiet --cached || git commit -m "Rebuild hex grid"
           git push
 
-      - name: Fail the run if the fetch step had problems
-        if: steps.fetch.outcome == 'failure'
-        run: |
-          echo "::warning::fetch_osm_pois.py reported failures this run -- data/hexes.geojson was still rebuilt from whatever raw data is currently on disk (a mix of old and newly fetched, depending on which tiles succeeded). Check the 'Fetch OSM POIs' step log above for details, and re-run the workflow to try filling in the gaps."
-          exit 1
-
   deploy:
-    needs: refresh
+    needs: build
     if: always()
     runs-on: ubuntu-latest
     steps:
