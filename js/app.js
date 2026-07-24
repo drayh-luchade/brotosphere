@@ -29,13 +29,9 @@ const JOKE_NUMBERS = [420, 69, 67];
 // type "max": pass when feature[prop] <= value
 const FILTERS = [
   { id: "bars", label: "Bars, Pubs & Taprooms", icon: "\u{1F37A}", prop: "bars", type: "min", unit: "", placeholder: "6" },
-  { id: "breweries", label: "Breweries & Distilleries", icon: "\u{1F943}", prop: "breweries", type: "min", unit: "", placeholder: "2" },
   { id: "golf", label: "Golf Courses (incl. Topgolf)", icon: "\u26F3", prop: "golf_courses", type: "min", unit: "", placeholder: "2" },
   { id: "boating", label: "Boat Ramps & Marinas", icon: "\u{1F6A4}", prop: "boat_ramps", type: "min", unit: "", placeholder: "2" },
-  { id: "fishing", label: "Fishing Access", icon: "\u{1F3A3}", prop: "fishing_access", type: "min", unit: "", placeholder: "3" },
   { id: "hardware", label: "Hardware / Home Improvement", icon: "\u{1F6E0}", prop: "hardware_stores", type: "min", unit: "", placeholder: "2" },
-  { id: "camping", label: "Campgrounds & Public Land", icon: "\u{1F3D5}", prop: "campgrounds", type: "min", unit: "", placeholder: "2" },
-  { id: "bargames", label: "Bar Games (bowling, pool, fraternal clubs)", icon: "\u{1F3B3}", prop: "bowling_pool_clubs", type: "min", unit: "", placeholder: "2" },
   { id: "gambling", label: "Casino / Gambling", icon: "\u{1F3B0}", prop: "casino_miles", type: "max", unit: " mi", placeholder: "75" },
 ];
 
@@ -50,13 +46,9 @@ const ALL_FIELDS = [...FILTERS, ...SPORTS_LEAGUES];
 
 const METRIC_DISPLAY = [
   { prop: "bars", label: "Bars" },
-  { prop: "breweries", label: "Breweries" },
   { prop: "golf_courses", label: "Golf courses" },
   { prop: "boat_ramps", label: "Boat ramps" },
-  { prop: "fishing_access", label: "Fishing access" },
   { prop: "hardware_stores", label: "Hardware stores" },
-  { prop: "campgrounds", label: "Campgrounds" },
-  { prop: "bowling_pool_clubs", label: "Bar games" },
   { prop: "nfl_miles", label: "Nearest NFL", suffix: " mi" },
   { prop: "nba_miles", label: "Nearest NBA", suffix: " mi" },
   { prop: "mlb_miles", label: "Nearest MLB", suffix: " mi" },
