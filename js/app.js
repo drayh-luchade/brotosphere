@@ -28,18 +28,18 @@ const JOKE_NUMBERS = [420, 69, 67];
 // type "min": pass when feature[prop] >= value
 // type "max": pass when feature[prop] <= value
 const FILTERS = [
-  { id: "bars", label: "Bars, Pubs & Taprooms", icon: "\u{1F37A}", prop: "bars", type: "min", unit: "", placeholder: "6" },
-  { id: "golf", label: "Golf Courses (incl. Topgolf)", icon: "\u26F3", prop: "golf_courses", type: "min", unit: "", placeholder: "2" },
-  { id: "boating", label: "Boat Ramps & Marinas", icon: "\u{1F6A4}", prop: "boat_ramps", type: "min", unit: "", placeholder: "2" },
-  { id: "hardware", label: "Hardware / Home Improvement", icon: "\u{1F6E0}", prop: "hardware_stores", type: "min", unit: "", placeholder: "2" },
-  { id: "gambling", label: "Casino / Gambling", icon: "\u{1F3B0}", prop: "casino_miles", type: "max", unit: " mi", placeholder: "75" },
+  { id: "bars", label: "Bars, Pubs & Taprooms", icon: "\u{1F37A}", prop: "bars", type: "min", unit: "" },
+  { id: "golf", label: "Golf Courses (incl. Topgolf)", icon: "\u26F3", prop: "golf_courses", type: "min", unit: "" },
+  { id: "boating", label: "Boat Ramps & Marinas", icon: "\u{1F6A4}", prop: "boat_ramps", type: "min", unit: "" },
+  { id: "hardware", label: "Hardware / Home Improvement", icon: "\u{1F6E0}", prop: "hardware_stores", type: "min", unit: "" },
+  { id: "gambling", label: "Casino / Gambling", icon: "\u{1F3B0}", prop: "casino_miles", type: "max", unit: " mi" },
 ];
 
 const SPORTS_LEAGUES = [
-  { id: "nfl", label: "NFL", prop: "nfl_miles", type: "max", unit: " mi", placeholder: "50" },
-  { id: "nba", label: "NBA", prop: "nba_miles", type: "max", unit: " mi", placeholder: "50" },
-  { id: "mlb", label: "MLB", prop: "mlb_miles", type: "max", unit: " mi", placeholder: "50" },
-  { id: "nhl", label: "NHL", prop: "nhl_miles", type: "max", unit: " mi", placeholder: "50" },
+  { id: "nfl", label: "NFL", prop: "nfl_miles", type: "max", unit: " mi" },
+  { id: "nba", label: "NBA", prop: "nba_miles", type: "max", unit: " mi" },
+  { id: "mlb", label: "MLB", prop: "mlb_miles", type: "max", unit: " mi" },
+  { id: "nhl", label: "NHL", prop: "nhl_miles", type: "max", unit: " mi" },
 ];
 
 const ALL_FIELDS = [...FILTERS, ...SPORTS_LEAGUES];
@@ -101,7 +101,7 @@ function buildFilterUI() {
         <span class="filter-icon">${f.icon}</span>
         <span class="filter-name">${f.label}</span>
         <span class="filter-verb">${verb}</span>
-        <input type="number" min="0" step="1" class="filter-num" id="num-${f.id}" placeholder="${f.placeholder}" />
+        <input type="number" min="0" step="1" class="filter-num" id="num-${f.id}" placeholder="0" />
         <span class="filter-unit">${f.unit}</span>
       </div>
     `;
@@ -137,7 +137,7 @@ function buildFilterUI() {
     row.innerHTML = `
       <span class="filter-name">${f.label}</span>
       <span class="filter-verb">within</span>
-      <input type="number" min="0" step="1" class="filter-num" id="num-${f.id}" placeholder="${f.placeholder}" />
+      <input type="number" min="0" step="1" class="filter-num" id="num-${f.id}" placeholder="0" />
       <span class="filter-unit">${f.unit}</span>
     `;
     subList.appendChild(row);
