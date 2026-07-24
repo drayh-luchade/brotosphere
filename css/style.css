@@ -375,6 +375,15 @@ html, body {
   user-select: none;
 }
 
+/* Same fix as .about-overlay above: an explicit display value on this
+   selector overrides the browser's default [hidden] handling regardless
+   of specificity (author CSS always beats the user-agent stylesheet), so
+   without this the overlay shows immediately on load instead of waiting
+   for the easter-egg condition. */
+.bruh-overlay[hidden] {
+  display: none;
+}
+
 /* corner information plate, styled after a USGS quad-sheet margin block */
 
 .corner-plate {
