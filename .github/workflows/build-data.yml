@@ -18,7 +18,19 @@ on:
       - "data/venues.csv"
       - "etl/build_h3_grid.py"
       - "etl/compute_metrics.py"
+      - "etl/us_states.py"
       - "etl/venues.py"
+
+# Pushing several files close together (e.g. uploading a batch of changed
+# files one at a time) used to kick off multiple overlapping runs, each
+# trying to commit+push data/hexes.geojson -- whichever finished first
+# would win, and every other one would get rejected with "remote contains
+# work you do not have locally." This queues runs instead of racing them:
+# a new run waits for the current one to finish rather than starting in
+# parallel with it.
+concurrency:
+  group: build-and-deploy
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -51,7 +63,17 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add data/hexes.geojson
           git diff --quiet --cached || git commit -m "Rebuild hex grid"
-          git push
+
+          # Belt-and-suspenders on top of the concurrency lock above: if
+          # anything else still lands on main between checkout and push
+          # (e.g. a manual edit via the GitHub web UI), retry a few times
+          # with a rebase instead of failing outright.
+          for i in 1 2 3 4 5; do
+            git push && break
+            echo "Push rejected (attempt $i) -- pulling and retrying..."
+            git pull --rebase origin main
+            sleep $((RANDOM % 5 + 2))
+          done
 
   deploy:
     needs: build
