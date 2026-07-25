@@ -27,6 +27,8 @@ import urllib.request
 
 import h3
 
+from us_states import assign_state, fetch_states, nearest_state
+
 BOUNDARY_URL = "https://raw.githubusercontent.com/johan/world.geo.json/master/countries/USA.geo.json"
 
 # Only used if the real boundary can't be fetched. Deliberately crude --
@@ -87,6 +89,26 @@ def main():
         ring = FALLBACK_CONUS_OUTLINE
 
     grid = build_grid(args.res, ring)
+
+    try:
+        states = fetch_states()
+        for cell in grid:
+            lng, lat = cell["center"]
+            cell["state"] = assign_state(lng, lat, states)
+        misses = [c for c in grid if c["state"] is None]
+        for cell in misses:
+            lng, lat = cell["center"]
+            cell["state"] = nearest_state(lng, lat, states)
+        print(f"Tagged each cell with its state ({len(misses)} needed the nearest-state "
+              f"fallback -- expected along jagged coastlines like the Great Lakes, "
+              f"where the country outline and state outlines disagree slightly).")
+    except (urllib.error.URLError, KeyError, IndexError) as e:
+        print(f"WARNING: couldn't fetch state boundaries ({e}) -- "
+              f"cells will have no 'state' property, so state-based exclusion "
+              f"won't work until this succeeds on a later run.", file=sys.stderr)
+        for cell in grid:
+            cell["state"] = None
+
     with open(args.out, "w") as f:
         json.dump(grid, f)
     print(f"Wrote {len(grid)} cells at resolution {args.res} to {args.out}")
