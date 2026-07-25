@@ -69,16 +69,30 @@
             <p class="geocode-status" id="geocode-status"></p>
           </div>
         </div>
-        <div class="exclusion-row disabled-note">
+        <div class="exclusion-row">
           <label class="check-row">
-            <input type="checkbox" disabled />
-            <span>Avoid by state / county</span>
+            <input type="checkbox" id="excl-states-enabled" />
+            <span>Avoid entire states</span>
           </label>
+          <div class="exclusion-sub" id="excl-states-sub">
+            <div class="state-checklist" id="state-checklist"></div>
+            <p class="geocode-status" id="excl-states-status"></p>
+          </div>
+        </div>
+        <div class="exclusion-row">
           <label class="check-row">
-            <input type="checkbox" disabled />
-            <span>Avoid user-drawn polygon</span>
+            <input type="checkbox" id="excl-polygon-enabled" />
+            <span>Avoid a hand-drawn area</span>
           </label>
-          <p class="coming-soon">Planned for v1.1 — requires boundary layers not yet in the pipeline.</p>
+          <div class="exclusion-sub" id="excl-polygon-sub">
+            <p class="block-help" style="margin-top:0">Click the map to place points. Click the first point again (or hit Finish) to close the shape.</p>
+            <div class="polygon-draw-controls">
+              <button type="button" id="polygon-draw-btn" class="btn-secondary">Start drawing</button>
+              <button type="button" id="polygon-finish-btn" class="btn-secondary" disabled>Finish shape</button>
+              <button type="button" id="polygon-clear-btn" class="btn-secondary" disabled>Clear</button>
+            </div>
+            <p class="geocode-status" id="excl-polygon-status"></p>
+          </div>
         </div>
       </section>
 
