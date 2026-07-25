@@ -58,9 +58,33 @@ const METRIC_DISPLAY = [
 
 const state = {
   values: {},   // fieldId -> number | null  (null = field is blank / not applied)
-  exclusion: { enabled: false, lat: null, lng: null, radiusMi: 30 },
+  exclusion: {
+    address: { enabled: false, lat: null, lng: null, radiusMi: 30 },
+    states: { enabled: false, set: new Set() },
+    polygon: { enabled: false, geometry: null },  // geometry: a closed GeoJSON Polygon, or null
+  },
 };
 ALL_FIELDS.forEach(f => { state.values[f.id] = null; });
+
+// The 48 contiguous states + DC -- matches etl/us_states.py's
+// CONUS_STATE_ABBRS exactly (that's the source of truth; this is just a
+// hardcoded display copy so the frontend doesn't need to fetch or parse
+// any boundary data for something as simple as a checkbox list).
+const STATE_LIST = [
+  ["AL", "Alabama"], ["AZ", "Arizona"], ["AR", "Arkansas"], ["CA", "California"],
+  ["CO", "Colorado"], ["CT", "Connecticut"], ["DE", "Delaware"], ["DC", "District of Columbia"],
+  ["FL", "Florida"], ["GA", "Georgia"], ["ID", "Idaho"], ["IL", "Illinois"],
+  ["IN", "Indiana"], ["IA", "Iowa"], ["KS", "Kansas"], ["KY", "Kentucky"],
+  ["LA", "Louisiana"], ["ME", "Maine"], ["MD", "Maryland"], ["MA", "Massachusetts"],
+  ["MI", "Michigan"], ["MN", "Minnesota"], ["MS", "Mississippi"], ["MO", "Missouri"],
+  ["MT", "Montana"], ["NE", "Nebraska"], ["NV", "Nevada"], ["NH", "New Hampshire"],
+  ["NJ", "New Jersey"], ["NM", "New Mexico"], ["NY", "New York"], ["NC", "North Carolina"],
+  ["ND", "North Dakota"], ["OH", "Ohio"], ["OK", "Oklahoma"], ["OR", "Oregon"],
+  ["PA", "Pennsylvania"], ["RI", "Rhode Island"], ["SC", "South Carolina"], ["SD", "South Dakota"],
+  ["TN", "Tennessee"], ["TX", "Texas"], ["UT", "Utah"], ["VT", "Vermont"],
+  ["VA", "Virginia"], ["WA", "Washington"], ["WV", "West Virginia"], ["WI", "Wisconsin"],
+  ["WY", "Wyoming"],
+];
 
 // ---- geometry helper --------------------------------------------------
 function milesBetween(lat1, lon1, lat2, lon2) {
@@ -235,6 +259,7 @@ map.on("load", async () => {
   addBlobLayer(BLOB_BASE_SRC, "rgba(150,138,104,0.28)", "#8f7f57", HIT_LAYER);
   addBlobLayer(BLOB_PASS_SRC, "rgba(75,93,52,0.6)", "#4b5d34", HIT_LAYER);
   addBlobLayer(BLOB_EXCL_SRC, "rgba(138,75,50,0.4)", "#8a4b32", HIT_LAYER);
+  setupDrawLayers();
 
   // Fit the real data extent instead of a guessed center/zoom -- this is
   // what was showing half of Canada and into Central America before.
@@ -298,10 +323,21 @@ function computeHexStates() {
     }
 
     let excluded = false;
-    if (state.exclusion.enabled && state.exclusion.lat != null) {
+
+    const addr = state.exclusion.address;
+    if (addr.enabled && addr.lat != null) {
       const [lng, lat] = centroidOf(ft);
-      const d = milesBetween(lat, lng, state.exclusion.lat, state.exclusion.lng);
-      excluded = d <= state.exclusion.radiusMi;
+      const d = milesBetween(lat, lng, addr.lat, addr.lng);
+      if (d <= addr.radiusMi) excluded = true;
+    }
+
+    if (!excluded && state.exclusion.states.enabled) {
+      if (state.exclusion.states.set.has(ft.properties.state)) excluded = true;
+    }
+
+    if (!excluded && state.exclusion.polygon.enabled && state.exclusion.polygon.geometry) {
+      const [lng, lat] = centroidOf(ft);
+      if (turf.booleanPointInPolygon([lng, lat], state.exclusion.polygon.geometry)) excluded = true;
     }
 
     map.setFeatureState({ source: SOURCE_ID, id }, { pass, excluded });
@@ -410,6 +446,213 @@ document.getElementById("zoom-best-btn").addEventListener("click", () => {
   map.fitBounds(bbox, { padding: 40, maxZoom: 9, duration: 600 });
 });
 
+// ---- exclusion zone controls: address radius ---------------------------
+const exclChk = document.getElementById("excl-address-enabled");
+const exclRow = exclChk.closest(".exclusion-row");
+const exclInput = document.getElementById("excl-address-input");
+const exclGo = document.getElementById("excl-address-go");
+const exclRadius = document.getElementById("excl-address-radius");
+const exclRadiusOut = document.getElementById("excl-address-radius-out");
+const geocodeStatus = document.getElementById("geocode-status");
+
+exclRadiusOut.textContent = `${exclRadius.value} mi`;
+
+exclChk.addEventListener("change", () => {
+  state.exclusion.address.enabled = exclChk.checked;
+  exclRow.classList.toggle("enabled", exclChk.checked);
+  if (!exclChk.checked) {
+    state.exclusion.address.lat = null;
+    geocodeStatus.textContent = "";
+  }
+  onFiltersChanged();
+});
+
+exclRadius.addEventListener("input", () => {
+  state.exclusion.address.radiusMi = Number(exclRadius.value);
+  exclRadiusOut.textContent = `${exclRadius.value} mi`;
+  onFiltersChanged();
+});
+
+exclGo.addEventListener("click", async () => {
+  const q = exclInput.value.trim();
+  if (!q) return;
+  geocodeStatus.textContent = "Locating\u2026";
+  try {
+    // Uses OpenStreetMap Nominatim, a free public geocoder. For anything
+    // beyond light demo traffic, self-host or use a commercial geocoder —
+    // see Nominatim's usage policy before scaling this up.
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
+    const res = await fetch(url);
+    const results = await res.json();
+    if (!results.length) {
+      geocodeStatus.textContent = "Couldn't find that place. Try a more specific address.";
+      return;
+    }
+    state.exclusion.address.lat = parseFloat(results[0].lat);
+    state.exclusion.address.lng = parseFloat(results[0].lon);
+    geocodeStatus.textContent = `Excluding ${state.exclusion.address.radiusMi} mi around: ${results[0].display_name.split(",").slice(0, 3).join(",")}`;
+    onFiltersChanged();
+  } catch (err) {
+    geocodeStatus.textContent = "Geocoding failed. Check your connection and try again.";
+  }
+});
+
+// ---- exclusion zone controls: avoid entire states -----------------------
+const stateExclChk = document.getElementById("excl-states-enabled");
+const stateExclRow = stateExclChk.closest(".exclusion-row");
+const stateExclStatus = document.getElementById("excl-states-status");
+
+function buildStateChecklist() {
+  const container = document.getElementById("state-checklist");
+  STATE_LIST.forEach(([abbr, name]) => {
+    const row = document.createElement("label");
+    row.className = "state-checklist-item";
+    row.innerHTML = `<input type="checkbox" id="state-${abbr}" /><span>${name}</span>`;
+    container.appendChild(row);
+
+    row.querySelector("input").addEventListener("change", (e) => {
+      if (e.target.checked) state.exclusion.states.set.add(abbr);
+      else state.exclusion.states.set.delete(abbr);
+      updateStateExclStatus();
+      onFiltersChanged();
+    });
+  });
+}
+
+function updateStateExclStatus() {
+  const n = state.exclusion.states.set.size;
+  stateExclStatus.textContent = n === 0 ? "" : `Excluding ${n} state${n === 1 ? "" : "s"}`;
+}
+
+stateExclChk.addEventListener("change", () => {
+  state.exclusion.states.enabled = stateExclChk.checked;
+  stateExclRow.classList.toggle("enabled", stateExclChk.checked);
+  onFiltersChanged();
+});
+
+// ---- exclusion zone controls: hand-drawn polygon -------------------------
+const polyExclChk = document.getElementById("excl-polygon-enabled");
+const polyExclRow = polyExclChk.closest(".exclusion-row");
+const polyExclStatus = document.getElementById("excl-polygon-status");
+const polyDrawBtn = document.getElementById("polygon-draw-btn");
+const polyFinishBtn = document.getElementById("polygon-finish-btn");
+const polyClearBtn = document.getElementById("polygon-clear-btn");
+
+const DRAW_SRC = "draw-source";
+const drawing = { active: false, points: [] };  // points: [[lng, lat], ...]
+
+function drawSourceData() {
+  const features = [];
+  drawing.points.forEach(([lng, lat], i) => {
+    features.push({ type: "Feature", properties: { first: i === 0 }, geometry: { type: "Point", coordinates: [lng, lat] } });
+  });
+  if (drawing.points.length >= 2) {
+    features.push({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: drawing.points } });
+  }
+  if (state.exclusion.polygon.geometry) {
+    features.push({ type: "Feature", properties: { finished: true }, geometry: state.exclusion.polygon.geometry });
+  }
+  return { type: "FeatureCollection", features };
+}
+
+function refreshDrawSource() {
+  const src = map.getSource(DRAW_SRC);
+  if (src) src.setData(drawSourceData());
+}
+
+function setupDrawLayers() {
+  map.addSource(DRAW_SRC, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({
+    id: "draw-fill", type: "fill", source: DRAW_SRC,
+    filter: ["==", ["geometry-type"], "Polygon"],
+    paint: { "fill-color": "#8a4b32", "fill-opacity": 0.25 },
+  });
+  map.addLayer({
+    id: "draw-line", type: "line", source: DRAW_SRC,
+    filter: ["==", ["geometry-type"], "LineString"],
+    paint: { "line-color": "#8a4b32", "line-width": 2, "line-dasharray": [2, 1] },
+  });
+  map.addLayer({
+    id: "draw-points", type: "circle", source: DRAW_SRC,
+    filter: ["==", ["geometry-type"], "Point"],
+    paint: {
+      "circle-radius": 5,
+      "circle-color": ["case", ["get", "first"], "#c2703d", "#8a4b32"],
+      "circle-stroke-width": 1.5,
+      "circle-stroke-color": "#fff",
+    },
+  });
+}
+
+function startDrawing() {
+  drawing.active = true;
+  drawing.points = [];
+  state.exclusion.polygon.geometry = null;
+  polyDrawBtn.classList.add("drawing-active");
+  polyDrawBtn.textContent = "Click map to add points\u2026";
+  polyFinishBtn.disabled = true;
+  polyClearBtn.disabled = true;
+  polyExclStatus.textContent = "Click the map to place points. Click the first point again to close the shape.";
+  refreshDrawSource();
+}
+
+function finishDrawing() {
+  if (drawing.points.length < 3) return;
+  const ring = [...drawing.points, drawing.points[0]];
+  state.exclusion.polygon.geometry = { type: "Polygon", coordinates: [ring] };
+  drawing.active = false;
+  drawing.points = [];
+  polyDrawBtn.classList.remove("drawing-active");
+  polyDrawBtn.textContent = "Redraw";
+  polyFinishBtn.disabled = true;
+  polyClearBtn.disabled = false;
+  polyExclStatus.textContent = "Shape set.";
+  refreshDrawSource();
+  onFiltersChanged();
+}
+
+function clearDrawing() {
+  drawing.active = false;
+  drawing.points = [];
+  state.exclusion.polygon.geometry = null;
+  polyDrawBtn.classList.remove("drawing-active");
+  polyDrawBtn.textContent = "Start drawing";
+  polyFinishBtn.disabled = true;
+  polyClearBtn.disabled = true;
+  polyExclStatus.textContent = "";
+  refreshDrawSource();
+  onFiltersChanged();
+}
+
+map.on("click", (e) => {
+  if (!drawing.active) return;
+
+  // Clicking near the first point (in screen pixels, so it works at any
+  // zoom level) closes the shape, same as hitting "Finish shape."
+  if (drawing.points.length >= 3) {
+    const firstPx = map.project(drawing.points[0]);
+    const clickPx = e.point;
+    const distPx = Math.hypot(firstPx.x - clickPx.x, firstPx.y - clickPx.y);
+    if (distPx < 12) {
+      finishDrawing();
+      return;
+    }
+  }
+
+  drawing.points.push([e.lngLat.lng, e.lngLat.lat]);
+  polyFinishBtn.disabled = drawing.points.length < 3;
+  refreshDrawSource();
+});
+
+polyExclChk.addEventListener("change", () => {
+  state.exclusion.polygon.enabled = polyExclChk.checked;
+  polyExclRow.classList.toggle("enabled", polyExclChk.checked);
+  onFiltersChanged();
+});
+polyDrawBtn.addEventListener("click", startDrawing);
+polyFinishBtn.addEventListener("click", finishDrawing);
+polyClearBtn.addEventListener("click", clearDrawing);
+
 // ---- popup -----------------------------------------------------------
 function showPopup(feature) {
   const p = feature.properties;
@@ -433,57 +676,6 @@ function showPopup(feature) {
   });
 }
 
-// ---- exclusion zone controls ------------------------------------------
-const exclChk = document.getElementById("excl-address-enabled");
-const exclRow = exclChk.closest(".exclusion-row");
-const exclInput = document.getElementById("excl-address-input");
-const exclGo = document.getElementById("excl-address-go");
-const exclRadius = document.getElementById("excl-address-radius");
-const exclRadiusOut = document.getElementById("excl-address-radius-out");
-const geocodeStatus = document.getElementById("geocode-status");
-
-exclRadiusOut.textContent = `${exclRadius.value} mi`;
-
-exclChk.addEventListener("change", () => {
-  state.exclusion.enabled = exclChk.checked;
-  exclRow.classList.toggle("enabled", exclChk.checked);
-  if (!exclChk.checked) {
-    state.exclusion.lat = null;
-    geocodeStatus.textContent = "";
-  }
-  onFiltersChanged();
-});
-
-exclRadius.addEventListener("input", () => {
-  state.exclusion.radiusMi = Number(exclRadius.value);
-  exclRadiusOut.textContent = `${exclRadius.value} mi`;
-  onFiltersChanged();
-});
-
-exclGo.addEventListener("click", async () => {
-  const q = exclInput.value.trim();
-  if (!q) return;
-  geocodeStatus.textContent = "Locating\u2026";
-  try {
-    // Uses OpenStreetMap Nominatim, a free public geocoder. For anything
-    // beyond light demo traffic, self-host or use a commercial geocoder —
-    // see Nominatim's usage policy before scaling this up.
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
-    const res = await fetch(url);
-    const results = await res.json();
-    if (!results.length) {
-      geocodeStatus.textContent = "Couldn't find that place. Try a more specific address.";
-      return;
-    }
-    state.exclusion.lat = parseFloat(results[0].lat);
-    state.exclusion.lng = parseFloat(results[0].lon);
-    geocodeStatus.textContent = `Excluding ${state.exclusion.radiusMi} mi around: ${results[0].display_name.split(",").slice(0, 3).join(",")}`;
-    onFiltersChanged();
-  } catch (err) {
-    geocodeStatus.textContent = "Geocoding failed. Check your connection and try again.";
-  }
-});
-
 // ---- reset -------------------------------------------------------------
 document.getElementById("reset-btn").addEventListener("click", () => {
   ALL_FIELDS.forEach(f => {
@@ -493,11 +685,29 @@ document.getElementById("reset-btn").addEventListener("click", () => {
     const row = document.getElementById(`filter-${f.id}`);
     if (row) row.classList.remove("active");
   });
+
+  // address radius
   exclChk.checked = false;
   exclRow.classList.remove("enabled");
-  state.exclusion = { enabled: false, lat: null, lng: null, radiusMi: 30 };
+  state.exclusion.address = { enabled: false, lat: null, lng: null, radiusMi: 30 };
   exclInput.value = "";
+  exclRadius.value = 30;
+  exclRadiusOut.textContent = "30 mi";
   geocodeStatus.textContent = "";
+
+  // avoid entire states
+  stateExclChk.checked = false;
+  stateExclRow.classList.remove("enabled");
+  state.exclusion.states = { enabled: false, set: new Set() };
+  document.querySelectorAll('#state-checklist input[type="checkbox"]').forEach(cb => (cb.checked = false));
+  updateStateExclStatus();
+
+  // hand-drawn polygon
+  polyExclChk.checked = false;
+  polyExclRow.classList.remove("enabled");
+  state.exclusion.polygon = { enabled: false, geometry: null };
+  clearDrawing();
+
   onFiltersChanged();
 });
 
@@ -514,3 +724,4 @@ document.getElementById("about-close-2").addEventListener("click", () => (aboutO
 aboutOverlay.addEventListener("click", (e) => { if (e.target === aboutOverlay) aboutOverlay.hidden = true; });
 
 buildFilterUI();
+buildStateChecklist();
