@@ -282,15 +282,45 @@ html, body {
   min-height: 1em;
 }
 
-.disabled-note { opacity: 0.55; }
-.disabled-note .check-row { cursor: not-allowed; }
-
-.coming-soon {
-  font-size: 0.72rem;
-  font-style: italic;
-  color: var(--ink-soft);
-  margin: 2px 0 0;
+.state-checklist {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 10px;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  padding: 8px;
+  margin-bottom: 6px;
 }
+
+.state-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.state-checklist-item input { accent-color: var(--rust); flex-shrink: 0; }
+
+.polygon-draw-controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.polygon-draw-controls .btn-secondary {
+  font-size: 0.72rem;
+  padding: 6px 9px;
+  flex: 1;
+}
+
+.btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-secondary:disabled:hover { background: var(--panel); color: var(--ink); }
+
+.btn-secondary.drawing-active { background: var(--rust); color: var(--panel); border-color: var(--rust); }
 
 .btn-secondary {
   font-family: var(--font-body);
